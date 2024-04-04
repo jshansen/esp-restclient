@@ -43,7 +43,8 @@ int RestClient::request(String method, String path, const char *body, String *re
         client = new WiFiClient();
     }
     if (!client->connect(host, port))
-    {        
+    {
+        Serial.println("DEBUG: client->connect() failed");
         return 0;
     }
     String request = method + " " + basePath + path + " HTTP/1.1\r\n";
@@ -69,7 +70,7 @@ int RestClient::request(String method, String path, const char *body, String *re
     }
     client->print(request.c_str());
     int statusCode = _readResponse(response);
-    //cleanup
+    // cleanup
     num_headers = 0;
     client->stop();
     delete client;
@@ -88,50 +89,54 @@ int RestClient::_readResponse(String *response)
     int i = 0;
     int code = 0;
 
-    while (client->connected())
+    // wait for response to become ready... assume we're always getting status to read...
+    while (!client->available())
     {
-        if (client->available())
+        delay(1);
+    }
+    // then read until there's no more and parse the message basics
+    while (client->available())
+    {
+        char c = client->read();
+
+        if (c == ' ' && !inStatus)
         {
-            char c = client->read();
-            if (c == ' ' && !inStatus)
+            inStatus = true;
+        }
+
+        if (inStatus && i < 3 && c != ' ')
+        {
+            statusCode[i] = c;
+            i++;
+        }
+        if (i == 3)
+        {
+            statusCode[i] = '\0';
+            code = atoi(statusCode);
+        }
+
+        if (httpBody)
+        {
+            // only write response if its not null
+            if (response != NULL)
+                response->concat(c);
+        }
+        else
+        {
+            if (c == '\n' && currentLineIsBlank)
             {
-                inStatus = true;
+                httpBody = true;
             }
 
-            if (inStatus && i < 3 && c != ' ')
+            if (c == '\n')
             {
-                statusCode[i] = c;
-                i++;
+                // you're starting a new line
+                currentLineIsBlank = true;
             }
-            if (i == 3)
+            else if (c != '\r')
             {
-                statusCode[i] = '\0';
-                code = atoi(statusCode);
-            }
-
-            if (httpBody)
-            {
-                //only write response if its not null
-                if (response != NULL)
-                    response->concat(c);
-            }
-            else
-            {
-                if (c == '\n' && currentLineIsBlank)
-                {
-                    httpBody = true;
-                }
-
-                if (c == '\n')
-                {
-                    // you're starting a new line
-                    currentLineIsBlank = true;
-                }
-                else if (c != '\r')
-                {
-                    // you've gotten a character on the current line
-                    currentLineIsBlank = false;
-                }
+                // you've gotten a character on the current line
+                currentLineIsBlank = false;
             }
         }
     }
