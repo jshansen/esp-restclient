@@ -1,6 +1,8 @@
 # esp-restclient
 ESP8266 REST Client
 
+** IMPORTANT: the cipher mode during connection is set to less secure to allow connections to be established in reasonable time on ESP8266 and similar low spec targets. Don't use this version of the library or derived versions in situations where this lower bar isn't appropriate.
+
 Supporting Protocols
 
 - HTTP
