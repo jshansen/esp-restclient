@@ -37,6 +37,7 @@ int RestClient::request(String method, String path, const char *body, String *re
     {
         client = new BearSSL::WiFiClientSecure();
         static_cast<BearSSL::WiFiClientSecure *>(client)->setInsecure();
+        static_cast<BearSSL::WiFiClientSecure *>(client)->setCiphersLessSecure();
     }
     else
     {
@@ -53,7 +54,8 @@ int RestClient::request(String method, String path, const char *body, String *re
         request += String(headers[i]) + "\r\n";
     }
     request += "Host: " + String(host) + ":" + String(port) + "\r\n";
-    request += "Connection: close\r\n";
+    request += "Connection: Keep-Alive\r\n"; // To ensure we can read the response before WiFiClient garbles up it's state.
+
     if (body != NULL)
     {
         char contentLength[30];
@@ -68,6 +70,11 @@ int RestClient::request(String method, String path, const char *body, String *re
         request += String(body);
         request += "\r\n\r\n";
     }
+
+    // DEBUG****
+    // Serial.println(request);
+    // DEBUG****
+
     client->print(request.c_str());
     int statusCode = _readResponse(response);
     // cleanup
@@ -89,12 +96,22 @@ int RestClient::_readResponse(String *response)
     int i = 0;
     int code = 0;
 
-    // wait for response to become ready... assume we're always getting status to read...
-    while (!client->available())
+    // DEBUG****
+    //Serial.println(String("Reading response [connected:")+String(client->connected())+"][available:"+String(client->available())+"]" );
+    // DEBUG****
+
+    int tick = 5000;
+    while(!client->available() && tick--)
     {
-        delay(1);
+        delay(1); // Allow network to catch up or we'll time out doing waiting
     }
-    // then read until there's no more and parse the message basics
+
+    // DEBUG****
+    //Serial.println(String("Now wait ticks remaining: ")+String(tick));
+    //Serial.printf("Now available: %d\n", client->available());
+    // DEBUG****
+
+    // read until there's no more and parse the message basics
     while (client->available())
     {
         char c = client->read();
@@ -120,7 +137,7 @@ int RestClient::_readResponse(String *response)
             // only write response if its not null
             if (response != NULL)
                 response->concat(c);
-        }
+       }
         else
         {
             if (c == '\n' && currentLineIsBlank)
