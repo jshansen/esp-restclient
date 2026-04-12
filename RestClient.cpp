@@ -46,6 +46,8 @@ int RestClient::request(String method, String path, const char *body, String *re
     if (!client->connect(host, port))
     {
         Serial.println("DEBUG: client->connect() failed");
+        delete client;
+        client = NULL;
         return 0;
     }
     String request = method + " " + basePath + path + " HTTP/1.1\r\n";
